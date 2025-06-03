@@ -20,6 +20,7 @@ const Index = () => {
   const [folderName, setFolderName] = useState('');
   const [editingFolder, setEditingFolder] = useState(null);
   const [lastEndDate, setLastEndDate] = useState(null);
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
 
   useEffect(() => {
     const tasksQuery = query(collection(db, 'tasks'), orderBy('serialNumber'));
@@ -54,35 +55,54 @@ const Index = () => {
   const handleAddFolder = () => setShowFolderInput(true);
 
   const handleFolderSave = async (e) => {
-  e.preventDefault();
-  if (folderName.trim()) {
-    try {
-      if (editingFolder) {
-        // No need to check again if it exists — we already have the folder from state
-        const folderRef = doc(db, 'folders', editingFolder.id);
-        await updateDoc(folderRef, {
-          name: folderName.trim()
-        });
-      } else {
-        await addDoc(collection(db, 'folders'), {
-          name: folderName.trim(),
-          createdAt: new Date().toISOString()
+    e.preventDefault();
+    if (folderName.trim()) {
+      try {
+        if (editingFolder) {
+          const folderRef = doc(db, 'folders', editingFolder.id);
+          await updateDoc(folderRef, {
+            name: folderName.trim()
+          });
+        } else {
+          await addDoc(collection(db, 'folders'), {
+            name: folderName.trim(),
+            createdAt: new Date().toISOString()
+          });
+        }
+        setFolderName('');
+        setShowFolderInput(false);
+        setEditingFolder(null);
+      } catch (error) {
+        console.error('Error saving folder:', error);
+        toast({
+          title: "Error",
+          description: "Failed to save folder. Please try again.",
+          variant: "destructive"
         });
       }
-      setFolderName('');
-      setShowFolderInput(false);
-      setEditingFolder(null);
+    }
+  };
+
+  const handleDeleteAllFolders = async () => {
+    try {
+      const deletionPromises = folders.map(folder => 
+        deleteDoc(doc(db, 'folders', folder.id))
+      );
+      await Promise.all(deletionPromises);
+      toast({
+        title: "Success",
+        description: "All folders have been deleted.",
+      });
+      setShowDeleteAllConfirm(false);
     } catch (error) {
-      console.error('Error saving folder:', error);
+      console.error('Error deleting folders:', error);
       toast({
         title: "Error",
-        description: "Failed to save folder. Please try again.",
+        description: "Failed to delete all folders. Please try again.",
         variant: "destructive"
       });
     }
-  }
-};
-
+  };
 
   const handleDeleteFolder = async (folderId, e) => {
     e.stopPropagation();
@@ -252,6 +272,14 @@ const Index = () => {
                     {folders.length} folders
                   </Badge>
                 </div>
+                <Button
+                  onClick={() => setShowDeleteAllConfirm(true)}
+                  variant="outline"
+                  className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete All Folders
+                </Button>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -333,6 +361,36 @@ const Index = () => {
         >
           <ArrowDown className="w-5 h-5" />
         </Button>
+
+        {/* Delete All Confirmation Dialog */}
+        {showDeleteAllConfirm && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <Card className="bg-slate-800 border-slate-700 max-w-md w-full">
+              <CardHeader>
+                <CardTitle className="text-white">Delete All Folders</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-slate-300">Are you sure you want to delete all folders? This action cannot be undone.</p>
+                <div className="flex justify-end gap-3 mt-4">
+                  <Button
+                    onClick={() => setShowDeleteAllConfirm(false)}
+                    variant="outline"
+                    className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleDeleteAllFolders}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete All
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Modals */}
         {showDatePicker && (
